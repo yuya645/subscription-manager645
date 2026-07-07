@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="サブスク管理">
+<title>サブスク管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#F2F2F7;color:#1C1C1E;min-height:100dvh}
+.safe-top{padding-top:calc(env(safe-area-inset-top) + 12px)}
+.safe-bottom{padding-bottom:calc(env(safe-area-inset-bottom) + 70px)}
+#loading-screen{position:fixed;inset:0;background:#F2F2F7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999}
+.loading-icon{font-size:52px}
+.loading-text{font-size:14px;color:#8E8E93}
+.spinner{width:28px;height:28px;border:3px solid #E5E5EA;border-top-color:#007AFF;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,0,0,.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;opacity:0;transition:all .3s;pointer-events:none;z-index:500;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.sync-ok{background:#34C759}.sync-err{background:#FF3B30}.sync-busy{background:#FF9F0A}
+.header{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid rgba(0,0,0,.12);padding:12px 20px 14px;position:sticky;top:0;z-index:10}
+.header-top{display:flex;align-items:center;justify-content:space-between}
+.header-title{font-size:28px;font-weight:700;letter-spacing:-.5px}
+.header-sub{font-size:12px;color:#8E8E93;margin-top:2px}
+.header-btns{display:flex;gap:8px}
+.icon-btn{width:34px;height:34px;background:#E5E5EA;border:none;border-radius:50%;color:#3C3C43;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.add-btn{width:34px;height:34px;background:#007AFF;border:none;border-radius:50%;color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.summary{padding:16px 16px 8px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.summary-card{background:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.summary-label{font-size:12px;color:#8E8E93;margin-bottom:4px}
+.summary-value{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.summary-unit{font-size:13px;font-weight:400;color:#8E8E93}
+.section-header{padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.section-title{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.section-count{font-size:13px;color:#8E8E93}
+.sub-list{padding:0 16px;display:flex;flex-direction:column;gap:8px}
+.sub-card{background:#fff;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;transition:transform .1s,opacity .1s;user-select:none}
+.sub-card:active{transform:scale(.98);opacity:.85}
+.sub-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.sub-info{flex:1;min-width:0}
+.sub-name{font-size:16px;font-weight:600}
+.sub-detail{font-size:12px;color:#8E8E93;margin-top:1px}
+.sub-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;margin-top:4px}
+.badge-warn{background:#FFF3E0;color:#E65100}
+.badge-ok{background:#E8F5E9;color:#2E7D32}
+.sub-right{text-align:right;flex-shrink:0}
+.sub-price{font-size:17px;font-weight:700}
+.sub-date{font-size:11px;color:#8E8E93;margin-top:2px}
+.chart-area{padding:8px 16px 16px}
+.chart-card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.chart-title{font-size:13px;color:#8E8E93;font-weight:500;margin-bottom:12px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-label{font-size:12px;color:#3C3C43;width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.bar-track{flex:1;height:8px;background:#F2F2F7;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px}
+.bar-amount{font-size:12px;color:#3C3C43;width:56px;text-align:right;flex-shrink:0}
+.empty{text-align:center;padding:60px 24px;color:#8E8E93}
+.empty-icon{font-size:52px;margin-bottom:12px;opacity:.5}
+.empty-text{font-size:15px;line-height:1.5}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:.5px solid rgba(0,0,0,.12);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 4px;font-size:10px;font-weight:500;color:#8E8E93;background:none;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.nav-item.active{color:#007AFF}
+.nav-icon{font-size:24px;line-height:1}
+.page{display:none}
+.page.active{display:block}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:flex-end}
+.modal-overlay.open{display:flex}
+.modal{background:#F2F2F7;border-radius:20px 20px 0 0;width:100%;max-height:92dvh;overflow-y:auto;padding:0 0 calc(env(safe-area-inset-bottom) + 16px)}
+.modal-handle{width:36px;height:4px;background:#C7C7CC;border-radius:2px;margin:10px auto 0}
+.modal-header{background:rgba(242,242,247,.95);backdrop-filter:blur(10px);position:sticky;top:0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:.5px solid rgba(0,0,0,.1);z-index:5}
+.modal-title{font-size:17px;font-weight:600}
+.modal-close{font-size:15px;color:#007AFF;background:none;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:4px 0}
+.modal-body{padding:16px}
+.form-section{background:#fff;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.form-section-title{padding:12px 16px 8px;font-size:13px;color:#8E8E93;font-weight:500}
+.form-row{display:flex;align-items:center;padding:12px 16px;border-bottom:.5px solid rgba(0,0,0,.1);gap:12px}
+.form-row:last-child{border-bottom:none}
+.form-label{font-size:15px;flex-shrink:0;min-width:80px}
+.form-input{flex:1;border:none;outline:none;font-size:15px;background:transparent;text-align:right;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1C1C1E}
+.form-input::placeholder{color:#C7C7CC}
+.form-input-full{width:100%;border:none;outline:none;font-size:14px;background:transparent;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1C1C1E;padding:12px 16px;word-break:break-all}
+.mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:12px;background:#fff;border-radius:12px;margin-bottom:16px}
+.mode-tab{padding:10px;border-radius:10px;border:1.5px solid #C7C7CC;background:#fff;color:#1C1C1E;font-size:14px;font-weight:500;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center}
+.mode-tab.selected{border-color:#007AFF;background:#EAF2FF;color:#007AFF}
+.cat-tabs{display:flex;gap:8px;padding:0 0 12px;overflow-x:auto;scrollbar-width:none}
+.cat-tabs::-webkit-scrollbar{display:none}
+.cat-tab{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid #C7C7CC;background:#fff;color:#3C3C43;font-size:13px;font-weight:500;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;white-space:nowrap}
+.cat-tab.active{border-color:#007AFF;background:#007AFF;color:#fff}
+.service-grid{display:flex;flex-direction:column;gap:8px;padding-bottom:16px}
+.service-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.service-card-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.service-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.service-name{font-size:15px;font-weight:600;flex:1}
+.service-desc{font-size:12px;color:#8E8E93}
+.plan-grid{display:flex;flex-direction:column;gap:6px}
+.plan-btn{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1.5px solid #E5E5EA;background:#F9F9F9;cursor:pointer;transition:border-color .15s,background .15s;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.plan-btn:active{background:#EAF2FF;border-color:#007AFF}
+.plan-name{font-size:13px;font-weight:500;color:#1C1C1E;text-align:left}
+.plan-price{font-size:14px;font-weight:700;color:#007AFF;flex-shrink:0;margin-left:8px}
+.emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:12px}
+.emoji-btn{height:44px;border-radius:10px;border:2px solid transparent;background:#F2F2F7;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
+.emoji-btn.selected{border-color:#007AFF;background:#E8F0FF}
+.color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:12px}
+.color-btn{height:36px;border-radius:8px;border:3px solid transparent;cursor:pointer}
+.color-btn.selected{border-color:#1C1C1E}
+.cycle-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px}
+.cycle-btn{padding:10px;border-radius:10px;border:1.5px solid #C7C7CC;background:#fff;color:#1C1C1E;font-size:14px;font-weight:500;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center}
+.cycle-btn.selected{border-color:#007AFF;background:#EAF2FF;color:#007AFF}
+.action-btn{display:block;width:100%;padding:16px;border-radius:14px;border:none;font-size:17px;font-weight:600;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin-bottom:10px}
+.btn-primary{background:#007AFF;color:#fff}
+.btn-danger{background:#fff;color:#FF3B30}
+.btn-secondary{background:#fff;color:#007AFF}
+.analytics-grid{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.stat-label{font-size:12px;color:#8E8E93;margin-bottom:4px}
+.stat-value{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.rank-card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.rank-title{font-size:13px;color:#8E8E93;font-weight:500;margin-bottom:12px}
+.upcoming-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.08)}
+.upcoming-item:last-child{border-bottom:none}
+.setup-note{font-size:13px;color:#8E8E93;line-height:1.6;padding:0 4px 16px}
+@media(prefers-color-scheme:dark){
+body{background:#000;color:#fff}
+#loading-screen{background:#000}
+.header,.bottom-nav{background:rgba(28,28,30,.9);border-color:rgba(255,255,255,.12)}
+.summary-card,.sub-card,.chart-card,.stat-card,.rank-card,.form-section,.service-card{background:#1C1C1E;box-shadow:none}
+.bar-track{background:#2C2C2E}
+.modal{background:#1C1C1E}
+.modal-header{background:rgba(28,28,30,.95);border-color:rgba(255,255,255,.1)}
+.form-row{border-color:rgba(255,255,255,.08)}
+.form-input,.form-input-full{color:#fff}
+.emoji-btn{background:#3A3A3C}
+.icon-btn{background:#3A3A3C;color:#fff}
+.cycle-btn,.mode-tab,.cat-tab{background:#3A3A3C;border-color:#48484A;color:#fff}
+.plan-btn{background:#2C2C2E;border-color:#48484A}
+.plan-name{color:#fff}
+.mode-tab.selected,.cycle-btn.selected{background:#0A3872;border-color:#0052CC;color:#4DA3FF}
+.cat-tab.active{background:#007AFF;border-color:#007AFF;color:#fff}
+.btn-danger,.btn-secondary{background:#2C2C2E}
+.badge-ok{background:#1B4332;color:#52B788}
+.badge-warn{background:#3B1A00;color:#FF9F0A}
+}
+</style>
+</head>
+<body>
+<div id="loading-screen"><div class="loading-icon">📋</div><div class="spinner"></div><div class="loading-text" id="loading-msg">データを読み込み中...</div></div>
+<div id="toast"></div>
+
+<!-- Home -->
+<div id="page-home" class="page safe-bottom">
+  <div class="header safe-top">
+    <div class="header-top">
+      <div>
+        <div class="header-title">サブスク管理</div>
+        <div class="header-sub" id="sync-status"><span class="sync-dot sync-busy"></span>接続中...</div>
+      </div>
+      <div class="header-btns">
+        <button class="icon-btn" onclick="openSettings()" aria-label="設定">⚙️</button>
+        <button class="add-btn" onclick="openAddModal()" aria-label="追加">＋</button>
+      </div>
+    </div>
+  </div>
+  <div class="summary">
+    <div class="summary-grid">
+      <div class="summary-card"><div class="summary-label">今月の合計</div><div class="summary-value" id="total-monthly">¥0<span class="summary-unit">/月</span></div></div>
+      <div class="summary-card"><div class="summary-label">年間換算</div><div class="summary-value" id="total-yearly">¥0<span class="summary-unit">/年</span></div></div>
+    </div>
+  </div>
+  <div class="section-header"><div class="section-title">登録中</div><div class="section-count" id="sub-count">0件</div></div>
+  <div class="sub-list" id="sub-list"></div>
+  <div id="chart-area" style="display:none"><div class="chart-area"><div class="chart-card"><div class="chart-title">サービス別の割合</div><div id="bar-chart"></div></div></div></div>
+</div>
+
+<!-- Analytics -->
+<div id="page-analytics" class="page safe-bottom">
+  <div class="header safe-top"><div class="header-top"><div class="header-title">分析</div></div></div>
+  <div class="analytics-grid" id="analytics-content"></div>
+</div>
+
+<!-- Nav -->
+<nav class="bottom-nav">
+  <button class="nav-item active" id="nav-home" onclick="switchPage('home')"><span class="nav-icon">🏠</span>ホーム</button>
+  <button class="nav-item" id="nav-analytics" onclick="switchPage('analytics')"><span class="nav-icon">📊</span>分析</button>
+</nav>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal" onclick="closeIfOverlay(event,'modal')">
+  <div class="modal" id="modal-inner">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-close" onclick="closeModal()">キャンセル</button>
+      <div class="modal-title" id="modal-title">追加</div>
+      <button class="modal-close" style="font-weight:600" id="modal-save-btn" onclick="saveSub()">保存</button>
+    </div>
+    <div class="modal-body">
+      <div id="mode-selector" class="mode-tabs">
+        <button class="mode-tab selected" id="mode-catalog" onclick="setMode('catalog')">📋 サービスから選ぶ</button>
+        <button class="mode-tab" id="mode-manual" onclick="setMode('manual')">✏️ 手入力で追加</button>
+      </div>
+      <div id="catalog-section">
+        <div class="cat-tabs" id="cat-tabs"></div>
+        <div class="service-grid" id="service-grid"></div>
+      </div>
+      <div id="manual-section" style="display:none">
+        <div class="form-section">
+          <div class="form-row"><div class="form-label">サービス名</div><input class="form-input" id="input-name" placeholder="例: Netflix"/></div>
+          <div class="form-row"><div class="form-label">金額（円）</div><input class="form-input" id="input-price" type="number" inputmode="numeric" placeholder="1500"/></div>
+          <div class="form-row"><div class="form-label">次回請求日</div><input class="form-input" id="input-date" type="date"/></div>
+        </div>
+        <div class="form-section"><div class="form-section-title">アイコン</div><div class="emoji-grid" id="emoji-grid"></div></div>
+        <div class="form-section"><div class="form-section-title">カラー</div><div class="color-grid" id="color-grid"></div></div>
+        <div class="form-section"><div class="form-section-title">請求サイクル</div>
+          <div class="cycle-row">
+            <button class="cycle-btn selected" id="cycle-monthly" onclick="selectCycle('monthly')">月払い</button>
+            <button class="cycle-btn" id="cycle-yearly" onclick="selectCycle('yearly')">年払い</button>
+            <button class="cycle-btn" id="cycle-weekly" onclick="selectCycle('weekly')">週払い</button>
+          </div>
+        </div>
+        <button class="action-btn btn-primary" onclick="saveSub()" id="save-btn">追加する</button>
+        <button class="action-btn btn-danger" id="del-btn" style="display:none" onclick="deleteSub()">削除する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Date Modal -->
+<div class="modal-overlay" id="date-modal" style="z-index:300">
+  <div class="modal" style="max-height:60dvh">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-close" onclick="skipDate()">スキップ</button>
+      <div class="modal-title">次回請求日</div>
+      <button class="modal-close" style="font-weight:600" onclick="confirmDate()">追加</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section">
+        <div style="padding:12px 16px 4px;font-size:13px;color:#8E8E93" id="date-service-name"></div>
+        <div class="form-row"><div class="form-label">請求日</div><input class="form-input" id="date-input-field" type="date"/></div>
+      </div>
+      <button class="action-btn btn-primary" onclick="confirmDate()">追加する</button>
+      <button class="action-btn btn-secondary" onclick="skipDate()">日付をスキップして追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal" style="z-index:400">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-close" onclick="closeSettings()">閉じる</button>
+      <div class="modal-title">設定</div>
+      <button class="modal-close" style="font-weight:600" onclick="saveSettings()">保存</button>
+    </div>
+    <div class="modal-body">
+      <div class="setup-note">
+        Google Apps ScriptのウェブアプリURLを入力してください。<br>
+        形式：https://script.google.com/macros/s/…/exec<br><br>
+        データはあなたのGoogleスプレッドシートに保存されるため、アプリを長期間開かなくても消えません。
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Apps Script URL</div>
+        <textarea class="form-input-full" id="gas-url-input" rows="4" placeholder="https://script.google.com/macros/s/xxxx/exec" style="resize:none;border:none;outline:none"></textarea>
+      </div>
+      <button class="action-btn btn-primary" onclick="saveSettings()">保存して再読み込み</button>
+      <button class="action-btn btn-secondary" onclick="testConnection()">接続テスト</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// 設定：Apps ScriptのURLをここに直接書くこともできます。
+// 空欄の場合は、アプリの設定画面（⚙️）から入力できます。
+// ═══════════════════════════════════════════════════
+const HARDCODED_GAS_URL = 'https://script.google.com/macros/s/AKfycbz2J7dHmOdAB4h0ImZaPi2eNRTpqyVd_ZOaR3XDc_KNqbuSIrk3dZyTxKkpw_-Z25uf/exec';
+
+const GAS_URL_KEY = 'gas_url';
+const CACHE_KEY = 'subs_cache_v1';
+const EMOJIS = ['📺','🎵','🎮','☁️','📰','💪','📚','🎬','🛡️','✈️','💊','🧘','🛒','📧','🔒','🎯','🏋️','🎨','📱','💻'];
+const COLORS = ['#007AFF','#34C759','#FF3B30','#FF9F0A','#AF52DE','#FF6B35','#00C7BE','#FF375F','#30D158','#5E5CE6','#64D2FF','#FF6482'];
+
+// 日本の主要サブスクカタログ（2026年7月時点の公式料金）
+const CATALOG = [
+  { cat:'動画', icon:'📺', services:[
+    { name:'Netflix', emoji:'📺', color:'#E50914', plans:[
+      {name:'広告付きスタンダード', price:890, cycle:'monthly'},
+      {name:'スタンダード', price:1590, cycle:'monthly'},
+      {name:'プレミアム（4K）', price:2290, cycle:'monthly'} ]},
+    { name:'Amazon Prime Video', emoji:'🎬', color:'#00A8E1', plans:[
+      {name:'月額プラン', price:600, cycle:'monthly'},
+      {name:'年額プラン', price:5900, cycle:'yearly'},
+      {name:'広告なしオプション込（月額）', price:990, cycle:'monthly'} ]},
+    { name:'Disney+', emoji:'🏰', color:'#113CCF', plans:[
+      {name:'スタンダード（月額）', price:1250, cycle:'monthly'},
+      {name:'スタンダード（年額）', price:12500, cycle:'yearly'},
+      {name:'プレミアム（月額）', price:1670, cycle:'monthly'},
+      {name:'プレミアム（年額）', price:16700, cycle:'yearly'} ]},
+    { name:'Hulu', emoji:'🟢', color:'#3DBB3D', plans:[
+      {name:'通常プラン', price:1026, cycle:'monthly'},
+      {name:'Disney+スタンダードセット', price:1890, cycle:'monthly'},
+      {name:'Disney+プレミアムセット', price:2150, cycle:'monthly'} ]},
+    { name:'U-NEXT', emoji:'🔴', color:'#FF0028', plans:[
+      {name:'月額プラン', price:2189, cycle:'monthly'} ]},
+    { name:'DMM TV', emoji:'🎦', color:'#FF4500', plans:[
+      {name:'DMMプレミアム', price:550, cycle:'monthly'} ]},
+    { name:'ABEMA', emoji:'📡', color:'#00B4D8', plans:[
+      {name:'ABEMAプレミアム', price:960, cycle:'monthly'} ]},
+    { name:'dアニメストア', emoji:'🌸', color:'#E4007F', plans:[
+      {name:'月額プラン', price:660, cycle:'monthly'} ]},
+    { name:'Apple TV+', emoji:'🍎', color:'#555555', plans:[
+      {name:'月額プラン', price:900, cycle:'monthly'} ]},
+    { name:'YouTube Premium', emoji:'▶️', color:'#FF0000', plans:[
+      {name:'個人（月額）', price:1280, cycle:'monthly'},
+      {name:'個人（年額）', price:12800, cycle:'yearly'},
+      {name:'ファミリー', price:2280, cycle:'monthly'},
+      {name:'学生', price:780, cycle:'monthly'} ]},
+  ]},
+  { cat:'音楽', icon:'🎵', services:[
+    { name:'Spotify', emoji:'🎵', color:'#1DB954', plans:[
+      {name:'Premium個人', price:1080, cycle:'monthly'},
+      {name:'Premiumデュオ', price:1480, cycle:'monthly'},
+      {name:'Premiumファミリー', price:1680, cycle:'monthly'},
+      {name:'Premium学生', price:580, cycle:'monthly'} ]},
+    { name:'Apple Music', emoji:'🎸', color:'#FC3C44', plans:[
+      {name:'個人（月額）', price:1080, cycle:'monthly'},
+      {name:'個人（年額）', price:10800, cycle:'yearly'},
+      {name:'ファミリー', price:1680, cycle:'monthly'},
+      {name:'学生', price:580, cycle:'monthly'} ]},
+    { name:'Amazon Music Unlimited', emoji:'🎶', color:'#00A8E1', plans:[
+      {name:'Prime会員（月額）', price:980, cycle:'monthly'},
+      {name:'非Prime会員（月額）', price:1280, cycle:'monthly'},
+      {name:'ファミリー', price:1680, cycle:'monthly'} ]},
+    { name:'YouTube Music', emoji:'🎤', color:'#FF0000', plans:[
+      {name:'個人', price:1080, cycle:'monthly'},
+      {name:'ファミリー', price:1680, cycle:'monthly'},
+      {name:'学生', price:580, cycle:'monthly'} ]},
+    { name:'LINE MUSIC', emoji:'💚', color:'#06C755', plans:[
+      {name:'個人', price:1080, cycle:'monthly'},
+      {name:'ファミリー', price:1680, cycle:'monthly'},
+      {name:'学生', price:580, cycle:'monthly'} ]},
+    { name:'AWA', emoji:'🎧', color:'#00BCD4', plans:[
+      {name:'スタンダード', price:960, cycle:'monthly'},
+      {name:'学生', price:480, cycle:'monthly'} ]},
+  ]},
+  { cat:'クラウド', icon:'☁️', services:[
+    { name:'iCloud+', emoji:'☁️', color:'#007AFF', plans:[
+      {name:'50GB', price:130, cycle:'monthly'},
+      {name:'200GB', price:400, cycle:'monthly'},
+      {name:'2TB', price:1300, cycle:'monthly'},
+      {name:'6TB', price:3900, cycle:'monthly'},
+      {name:'12TB', price:7900, cycle:'monthly'} ]},
+    { name:'Google One', emoji:'🌐', color:'#4285F4', plans:[
+      {name:'ベーシック 100GB', price:250, cycle:'monthly'},
+      {name:'スタンダード 200GB', price:380, cycle:'monthly'},
+      {name:'プレミアム 2TB', price:1300, cycle:'monthly'} ]},
+    { name:'Dropbox', emoji:'📦', color:'#0061FF', plans:[
+      {name:'Plus 2TB', price:1200, cycle:'monthly'},
+      {name:'Professional 3TB', price:2000, cycle:'monthly'} ]},
+    { name:'Microsoft 365', emoji:'🪟', color:'#D83B01', plans:[
+      {name:'Personal（月額）', price:1490, cycle:'monthly'},
+      {name:'Personal（年額）', price:14900, cycle:'yearly'},
+      {name:'Family（月額）', price:2100, cycle:'monthly'},
+      {name:'Family（年額）', price:21000, cycle:'yearly'} ]},
+  ]},
+  { cat:'ゲーム', icon:'🎮', services:[
+    { name:'Nintendo Switch Online', emoji:'🎮', color:'#E60012', plans:[
+      {name:'個人 1ヶ月', price:306, cycle:'monthly'},
+      {name:'個人 12ヶ月', price:3000, cycle:'yearly'},
+      {name:'ファミリー 12ヶ月', price:5800, cycle:'yearly'},
+      {name:'＋追加パック個人 12ヶ月', price:4900, cycle:'yearly'},
+      {name:'＋追加パックファミリー 12ヶ月', price:8700, cycle:'yearly'} ]},
+    { name:'PlayStation Plus', emoji:'🎲', color:'#003087', plans:[
+      {name:'Essential（月額）', price:850, cycle:'monthly'},
+      {name:'Essential（12ヶ月）', price:6800, cycle:'yearly'},
+      {name:'Extra（月額）', price:1300, cycle:'monthly'},
+      {name:'Extra（12ヶ月）', price:10800, cycle:'yearly'},
+      {name:'Premium（月額）', price:1550, cycle:'monthly'},
+      {name:'Premium（12ヶ月）', price:13500, cycle:'yearly'} ]},
+    { name:'Xbox Game Pass', emoji:'🎯', color:'#107C10', plans:[
+      {name:'Standard（月額）', price:1100, cycle:'monthly'},
+      {name:'Ultimate（月額）', price:1650, cycle:'monthly'} ]},
+    { name:'Apple Arcade', emoji:'🕹️', color:'#555555', plans:[
+      {name:'月額プラン', price:600, cycle:'monthly'} ]},
+  ]},
+  { cat:'読書', icon:'📚', services:[
+    { name:'Kindle Unlimited', emoji:'📚', color:'#FF9900', plans:[
+      {name:'月額プラン', price:980, cycle:'monthly'} ]},
+    { name:'Audible', emoji:'🎙️', color:'#F8991C', plans:[
+      {name:'聴き放題プラン', price:1500, cycle:'monthly'} ]},
+    { name:'楽天マガジン', emoji:'📰', color:'#BF0000', plans:[
+      {name:'月額プラン', price:418, cycle:'monthly'},
+      {name:'年額プラン', price:3960, cycle:'yearly'} ]},
+    { name:'dマガジン', emoji:'📖', color:'#E60012', plans:[
+      {name:'月額プラン', price:580, cycle:'monthly'} ]},
+  ]},
+  { cat:'その他', icon:'⭐', services:[
+    { name:'Apple One', emoji:'🍎', color:'#555555', plans:[
+      {name:'個人', price:1200, cycle:'monthly'},
+      {name:'ファミリー', price:1980, cycle:'monthly'},
+      {name:'プレミア', price:2980, cycle:'monthly'} ]},
+    { name:'ChatGPT Plus', emoji:'🤖', color:'#10A37F', plans:[
+      {name:'Plus', price:3000, cycle:'monthly'} ]},
+    { name:'Claude Pro', emoji:'✳️', color:'#D97757', plans:[
+      {name:'Pro（月額）', price:3000, cycle:'monthly'} ]},
+    { name:'Adobe Creative Cloud', emoji:'🎨', color:'#FF0000', plans:[
+      {name:'フォトプラン 20GB', price:2180, cycle:'monthly'},
+      {name:'コンプリート（月々）', price:7780, cycle:'monthly'} ]},
+    { name:'Canva Pro', emoji:'✏️', color:'#7D2AE8', plans:[
+      {name:'月額プラン', price:1700, cycle:'monthly'},
+      {name:'年額プラン', price:17000, cycle:'yearly'} ]},
+    { name:'Uber One', emoji:'🚗', color:'#000000', plans:[
+      {name:'月額プラン', price:998, cycle:'monthly'},
+      {name:'年額プラン', price:9980, cycle:'yearly'} ]},
+  ]},
+];
+
+// ─── 状態 ────────────────────────────────────────
+let subs = [];
+let editIdx = -1;
+let selEmoji = '📺';
+let selColor = COLORS[0];
+let selCycle = 'monthly';
+let currentCat = 0;
+let pendingSub = null;
+let gasUrl = HARDCODED_GAS_URL || localStorage.getItem(GAS_URL_KEY) || '';
+
+// ─── 同期ステータス表示 ──────────────────────────
+function setSyncStatus(state, msg){
+  const el = document.getElementById('sync-status');
+  const cls = state==='ok'?'sync-ok':state==='err'?'sync-err':'sync-busy';
+  el.innerHTML = `<span class="sync-dot ${cls}"></span>${msg}`;
+}
+function showToast(msg){ const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200); }
+
+// ─── Google Sheets 同期 ──────────────────────────
+async function fetchFromSheet(){
+  if(!gasUrl) throw new Error('URL未設定');
+  const res = await fetch(gasUrl);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error||'不明なエラー');
+  return json.data.map(r => ({
+    id: String(r.id),
+    name: String(r.name),
+    emoji: String(r.emoji||'📋'),
+    color: String(r.color||'#007AFF'),
+    price: Number(r.price)||0,
+    cycle: String(r.cycle||'monthly'),
+    planName: String(r.planName||''),
+    date: r.date ? String(r.date).slice(0,10) : ''
+  }));
+}
+
+async function pushToSheet(){
+  if(!gasUrl){ showToast('設定からURLを入力してください'); return false; }
+  setSyncStatus('busy','保存中...');
+  try{
+    // Content-Typeをtext/plainにすることでCORSプリフライトを回避（GASの仕様）
+    const res = await fetch(gasUrl, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'save', data: subs })
+    });
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error||'保存エラー');
+    localStorage.setItem(CACHE_KEY, JSON.stringify(subs));
+    setSyncStatus('ok','スプレッドシートと同期済み');
+    showToast('保存しました');
+    return true;
+  }catch(e){
+    setSyncStatus('err','保存失敗（オフライン？）');
+    showToast('保存に失敗しました');
+    localStorage.setItem(CACHE_KEY, JSON.stringify(subs)); // 少なくともローカルに残す
+    return false;
+  }
+}
+
+// ─── ユーティリティ ──────────────────────────────
+function toMonthly(p,c){ return c==='yearly'?p/12:c==='weekly'?p*52/12:p; }
+function cycleLabel(c){ return c==='yearly'?'年払い':c==='weekly'?'週払い':'月払い'; }
+function daysUntil(d){ if(!d) return null; return Math.ceil((new Date(d)-new Date())/86400000); }
+function fmt(n){ return Math.round(n).toLocaleString('ja-JP'); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── レンダリング ────────────────────────────────
+function render(){
+  const list=document.getElementById('sub-list');
+  list.innerHTML='';
+  const totalM=subs.reduce((s,sub)=>s+toMonthly(sub.price,sub.cycle),0);
+  document.getElementById('total-monthly').innerHTML=`¥${fmt(totalM)}<span class="summary-unit">/月</span>`;
+  document.getElementById('total-yearly').innerHTML=`¥${fmt(totalM*12)}<span class="summary-unit">/年</span>`;
+  document.getElementById('sub-count').textContent=subs.length+'件';
+  if(subs.length===0){
+    list.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p class="empty-text">サービスがまだありません。<br>右上の＋から追加しましょう。</p></div>';
+    document.getElementById('chart-area').style.display='none';
+    renderAnalytics(0); return;
+  }
+  subs.forEach((sub,i)=>{
+    const days=daysUntil(sub.date);
+    const soon=days!==null&&days>=0&&days<=7;
+    const card=document.createElement('div');
+    card.className='sub-card';
+    card.onclick=()=>openEditModal(i);
+    card.innerHTML=`
+      <div class="sub-icon" style="background:${esc(sub.color)}22">${esc(sub.emoji)}</div>
+      <div class="sub-info">
+        <div class="sub-name">${esc(sub.name)}</div>
+        <div class="sub-detail">${esc(sub.planName||cycleLabel(sub.cycle))}</div>
+        ${soon?`<span class="sub-badge badge-warn">⏰ あと${days}日</span>`:(sub.date?`<span class="sub-badge badge-ok">✓ 継続中</span>`:'')}
+      </div>
+      <div class="sub-right">
+        <div class="sub-price" style="color:${esc(sub.color)}">¥${fmt(sub.price)}</div>
+        <div class="sub-date">${esc(sub.date||'—')}</div>
+      </div>`;
+    list.appendChild(card);
+  });
+  document.getElementById('chart-area').style.display='';
+  const chart=document.getElementById('bar-chart'); chart.innerHTML='';
+  [...subs].sort((a,b)=>toMonthly(b.price,b.cycle)-toMonthly(a.price,a.cycle)).forEach(sub=>{
+    const m=toMonthly(sub.price,sub.cycle);
+    const pct=totalM>0?m/totalM*100:0;
+    chart.innerHTML+=`<div class="bar-row"><div class="bar-label">${esc(sub.emoji)} ${esc(sub.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${esc(sub.color)}"></div></div><div class="bar-amount">¥${fmt(m)}</div></div>`;
+  });
+  renderAnalytics(totalM);
+}
+
+function renderAnalytics(totalM){
+  const el=document.getElementById('analytics-content'); el.innerHTML='';
+  if(subs.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📊</div><p class="empty-text">サービスを追加すると分析が表示されます。</p></div>';return;}
+  const sg=document.createElement('div'); sg.className='stat-grid';
+  [['月間合計',`¥${fmt(totalM)}`],['年間合計',`¥${fmt(totalM*12)}`],['1日あたり',`¥${fmt(totalM/30)}`],['登録数',`${subs.length}件`]].forEach(([l,v])=>{
+    sg.innerHTML+=`<div class="stat-card"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`;
+  });
+  el.appendChild(sg);
+  const rc=document.createElement('div'); rc.className='rank-card';
+  rc.innerHTML='<div class="rank-title">支出ランキング</div>';
+  [...subs].sort((a,b)=>toMonthly(b.price,b.cycle)-toMonthly(a.price,a.cycle)).forEach(sub=>{
+    const m=toMonthly(sub.price,sub.cycle); const pct=totalM>0?m/totalM*100:0;
+    rc.innerHTML+=`<div class="bar-row"><div class="bar-label">${esc(sub.emoji)} ${esc(sub.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${esc(sub.color)}"></div></div><div class="bar-amount">¥${fmt(m)}</div></div>`;
+  });
+  el.appendChild(rc);
+  const upcoming=subs.filter(s=>s.date).map(s=>({...s,days:daysUntil(s.date)})).filter(s=>s.days!==null&&s.days>=0).sort((a,b)=>a.days-b.days);
+  if(upcoming.length>0){
+    const uc=document.createElement('div'); uc.className='rank-card';
+    uc.innerHTML='<div class="rank-title">近日中の請求</div>';
+    upcoming.slice(0,5).forEach(s=>{
+      uc.innerHTML+=`<div class="upcoming-item"><span style="font-size:24px">${esc(s.emoji)}</span><div style="flex:1"><div style="font-size:15px;font-weight:600">${esc(s.name)}</div><div style="font-size:12px;color:#8E8E93">${esc(s.date)}</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:700">¥${fmt(s.price)}</div><div style="font-size:11px;color:${s.days<=3?'#FF3B30':'#8E8E93'}">あと${s.days}日</div></div></div>`;
+    });
+    el.appendChild(uc);
+  }
+}
+
+// ─── カタログ ────────────────────────────────────
+function buildCatalog(){
+  const tabs=document.getElementById('cat-tabs'); tabs.innerHTML='';
+  CATALOG.forEach((c,i)=>{
+    const btn=document.createElement('button');
+    btn.className='cat-tab'+(i===currentCat?' active':'');
+    btn.textContent=c.icon+' '+c.cat;
+    btn.onclick=()=>{ currentCat=i; buildCatalog(); };
+    tabs.appendChild(btn);
+  });
+  const grid=document.getElementById('service-grid'); grid.innerHTML='';
+  CATALOG[currentCat].services.forEach((svc,si)=>{
+    const card=document.createElement('div'); card.className='service-card';
+    const top=document.createElement('div'); top.className='service-card-top';
+    top.innerHTML=`<div class="service-icon" style="background:${svc.color}22">${svc.emoji}</div><div><div class="service-name">${esc(svc.name)}</div><div class="service-desc">${svc.plans.length}プラン</div></div>`;
+    card.appendChild(top);
+    const pg=document.createElement('div'); pg.className='plan-grid';
+    svc.plans.forEach(plan=>{
+      const b=document.createElement('button'); b.className='plan-btn';
+      b.innerHTML=`<span class="plan-name">${esc(plan.name)}</span><span class="plan-price">¥${plan.price.toLocaleString()}/${plan.cycle==='yearly'?'年':plan.cycle==='weekly'?'週':'月'}</span>`;
+      b.onclick=()=>selectPlan(svc,plan);
+      pg.appendChild(b);
+    });
+    card.appendChild(pg);
+    grid.appendChild(card);
+  });
+}
+
+function selectPlan(svc,plan){
+  pendingSub={ id:uid(), name:svc.name, emoji:svc.emoji, color:svc.color, price:plan.price, cycle:plan.cycle, planName:plan.name, date:'' };
+  document.getElementById('date-modal').classList.add('open');
+  document.getElementById('date-input-field').value='';
+  document.getElementById('date-service-name').textContent=`${svc.emoji} ${svc.name}（${plan.name}）¥${plan.price.toLocaleString()}/${plan.cycle==='yearly'?'年':'月'}`;
+}
+async function confirmDate(){
+  if(!pendingSub) return;
+  pendingSub.date=document.getElementById('date-input-field').value;
+  subs.push(pendingSub); pendingSub=null;
+  document.getElementById('date-modal').classList.remove('open');
+  closeModal(); render(); await pushToSheet();
+}
+async function skipDate(){
+  if(!pendingSub) return;
+  pendingSub.date='';
+  subs.push(pendingSub); pendingSub=null;
+  document.getElementById('date-modal').classList.remove('open');
+  closeModal(); render(); await pushToSheet();
+}
+
+// ─── モーダル ────────────────────────────────────
+function setMode(mode){
+  document.getElementById('catalog-section').style.display=mode==='catalog'?'':'none';
+  document.getElementById('manual-section').style.display=mode==='manual'?'':'none';
+  document.getElementById('mode-catalog').className='mode-tab'+(mode==='catalog'?' selected':'');
+  document.getElementById('mode-manual').className='mode-tab'+(mode==='manual'?' selected':'');
+  document.getElementById('modal-save-btn').style.visibility=mode==='catalog'?'hidden':'visible';
+  if(mode==='catalog') buildCatalog();
+}
+function openAddModal(){
+  editIdx=-1; selEmoji='📺'; selColor=COLORS[0]; selCycle='monthly'; currentCat=0;
+  document.getElementById('modal-title').textContent='追加';
+  document.getElementById('input-name').value='';
+  document.getElementById('input-price').value='';
+  document.getElementById('input-date').value='';
+  document.getElementById('save-btn').textContent='追加する';
+  document.getElementById('del-btn').style.display='none';
+  document.getElementById('mode-selector').style.display='';
+  selectCycle('monthly'); buildEmojiGrid(); buildColorGrid();
+  setMode('catalog');
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('modal-inner').scrollTop=0;
+}
+function openEditModal(i){
+  editIdx=i;
+  const sub=subs[i];
+  selEmoji=sub.emoji; selColor=sub.color; selCycle=sub.cycle;
+  document.getElementById('modal-title').textContent='編集';
+  document.getElementById('input-name').value=sub.name;
+  document.getElementById('input-price').value=sub.price;
+  document.getElementById('input-date').value=sub.date||'';
+  document.getElementById('save-btn').textContent='保存する';
+  document.getElementById('del-btn').style.display='block';
+  document.getElementById('mode-selector').style.display='none';
+  document.getElementById('modal-save-btn').style.visibility='visible';
+  selectCycle(sub.cycle); buildEmojiGrid(); buildColorGrid();
+  document.getElementById('catalog-section').style.display='none';
+  document.getElementById('manual-section').style.display='';
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('modal-inner').scrollTop=0;
+}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+function closeIfOverlay(e,id){ if(e.target===document.getElementById(id)) document.getElementById(id).classList.remove('open'); }
+
+async function saveSub(){
+  const name=document.getElementById('input-name').value.trim();
+  const price=parseInt(document.getElementById('input-price').value);
+  const date=document.getElementById('input-date').value;
+  if(!name||isNaN(price)||price<=0){ showToast('名前と金額を入力してください'); return; }
+  if(editIdx>=0){
+    const old=subs[editIdx];
+    subs[editIdx]={...old,name,emoji:selEmoji,color:selColor,price,cycle:selCycle,date};
+  }else{
+    subs.push({id:uid(),name,emoji:selEmoji,color:selColor,price,cycle:selCycle,planName:'',date});
+  }
+  closeModal(); render(); await pushToSheet();
+}
+async function deleteSub(){
+  if(!confirm(`「${subs[editIdx].name}」を削除しますか？`)) return;
+  subs.splice(editIdx,1);
+  closeModal(); render(); await pushToSheet();
+}
+
+function buildEmojiGrid(){
+  const g=document.getElementById('emoji-grid'); g.innerHTML='';
+  EMOJIS.forEach(e=>{ const b=document.createElement('button'); b.className='emoji-btn'+(e===selEmoji?' selected':''); b.textContent=e; b.onclick=()=>{selEmoji=e;buildEmojiGrid();}; g.appendChild(b); });
+}
+function buildColorGrid(){
+  const g=document.getElementById('color-grid'); g.innerHTML='';
+  COLORS.forEach(c=>{ const b=document.createElement('button'); b.className='color-btn'+(c===selColor?' selected':''); b.style.background=c; b.onclick=()=>{selColor=c;buildColorGrid();}; g.appendChild(b); });
+}
+function selectCycle(c){
+  selCycle=c;
+  ['monthly','yearly','weekly'].forEach(x=>{ document.getElementById('cycle-'+x).className='cycle-btn'+(x===c?' selected':''); });
+}
+function switchPage(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('nav-'+page).classList.add('active');
+}
+
+// ─── 設定 ────────────────────────────────────────
+function openSettings(){
+  document.getElementById('gas-url-input').value=gasUrl;
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings(){ document.getElementById('settings-modal').classList.remove('open'); }
+async function saveSettings(){
+  const url=document.getElementById('gas-url-input').value.trim();
+  if(url && !url.startsWith('https://script.google.com/')){ showToast('URLの形式が正しくありません'); return; }
+  gasUrl=url;
+  localStorage.setItem(GAS_URL_KEY,url);
+  closeSettings();
+  showToast('設定を保存しました');
+  await initLoad();
+}
+async function testConnection(){
+  const url=document.getElementById('gas-url-input').value.trim();
+  if(!url){ showToast('URLを入力してください'); return; }
+  showToast('接続テスト中...');
+  try{
+    const res=await fetch(url);
+    const json=await res.json();
+    if(json.ok){ showToast(`✓ 接続成功（${json.data.length}件のデータ）`); }
+    else{ showToast('✗ 応答が不正です'); }
+  }catch(e){ showToast('✗ 接続できません'); }
+}
+
+// ─── 起動 ────────────────────────────────────────
+async function initLoad(){
+  document.getElementById('loading-msg').textContent='データを読み込み中...';
+  if(!gasUrl){
+    // URL未設定：キャッシュから復元し設定を促す
+    try{ subs=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); }catch(e){ subs=[]; }
+    setSyncStatus('err','未接続 — ⚙️から設定してください');
+    render();
+    return;
+  }
+  setSyncStatus('busy','スプレッドシートに接続中...');
+  try{
+    subs=await fetchFromSheet();
+    localStorage.setItem(CACHE_KEY,JSON.stringify(subs));
+    setSyncStatus('ok','スプレッドシートと同期済み');
+  }catch(e){
+    // オフライン時はキャッシュ表示
+    try{ subs=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); }catch(_){ subs=[]; }
+    setSyncStatus('err','接続失敗 — キャッシュ表示中');
+  }
+  render();
+}
+
+(async()=>{
+  await initLoad();
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('page-home').classList.add('active');
+  if(!gasUrl) setTimeout(openSettings, 400);
+})();
+</script>
+</body>
+</html>
